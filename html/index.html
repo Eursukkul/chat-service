@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>{{.Title}}</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+
+  </head>
+  <style type="text/css">
+    body,
+    html {
+      height: 100%;
+    }
+  </style>
+  <script type="text/javascript">
+    const socket = new WebSocket("ws://127.0.0.1:3000/ws/project_123");
+    socket.onopen = () => {
+      console.log("WebSocket connection established.");
+    };
+
+    // Event listener for incoming messages
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      const message = data.message;
+
+      const chatroom = document.getElementById("chat");
+      const chat = document.createElement("div");
+      chat.className = " w-full flex justify-end border-t px-5";
+      chat.innerHTML = `<div class="my-2">${message}</div>`;
+      chatroom.appendChild(chat);
+      getChatsRoom();
+    };
+
+    // Event listener for any errors that occur
+    socket.onerror = (error) => {
+      console.error("WebSocket error:", error);
+    };
+
+    // Event listener for when the connection is closed
+    socket.onclose = () => {
+      console.log("WebSocket connection closed.");
+    };
+
+    const getUUID = () => {
+      const getListChat = document.getElementsByClassName("listChatroom");
+      for (let i of getListChat) {
+        i.addEventListener("click", () => {
+          const uuid = i.innerHTML;
+          document.getElementById("uuidLabel").innerHTML = uuid;
+          updateChat(uuid);
+          getChat(uuid);
+          getChatsRoom();
+        });
+      }
+    };
+
+    const getChat = async (id) => {
+      const result = await fetch("http://127.0.0.1:3000/api/getChat/" + id, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      const data = await result.json();
+      const message = data.data.data;
+      const chatroom = document.getElementById("chat");
+      chatroom.innerHTML = "";
+      for (let i of message) {
+        const chat = document.createElement("div");
+        chat.className = " w-full flex justify-end border-t px-5";
+        chat.innerHTML = `<div class="my-2">${i.message}</div>`;
+        chatroom.appendChild(chat);
+      }
+    };
+
+    const updateChat = async (chat) => {
+      const result = await fetch(
+        "http://127.0.0.1:3000/api/updateChat/" + chat,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    };
+    const getChatsRoom = async () => {
+      const result = await fetch(
+        "http://127.0.0.1:3000/api/getChatRoom/project_123",
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      const data = await result.json();
+      const chatroom = document.getElementById("chatroom");
+      chatroom.innerHTML = "";
+      for (let i of data.data.data) {
+        const chat = document.createElement("div");
+        chat.innerHTML = `
+        <div> <p class="text-center">${i.count_read}</p>  <div class="border-b w-full text-center p-5 hover:bg-blue-200 cursor-pointer listChatroom" onclick="getUUID()">${i.uuid}</div></div>`;
+        chatroom.appendChild(chat);
+      }
+    };
+
+    const sendMessage = () => {
+      if (document.getElementById("message").value === "") return;
+      const message = document.getElementById("message").value;
+      const data = {
+        chatroom_id: document.getElementById("uuidLabel").innerHTML,
+        message: message,
+        name: "Alice",
+        role: "user",
+        user_id: "user_1",
+        create_by: "system",
+        create_date: "2023-11-18T12:00:00Z",
+        is_read: false,
+      };
+      socket.send(JSON.stringify(data));
+      document.getElementById("message").value = "";
+    };
+
+    const keypress = (e) => {
+      const message = document.getElementById("message");
+      if (e.keyCode === 13 && message.value !== "") {
+        sendMessage();
+        message.value = "";
+      }
+    };
+
+    function uuidv4() {
+      return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) =>
+        (
+          c ^
+          (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))
+        ).toString(16)
+      );
+    }
+
+    async function addChatRoom() {
+      const result = await fetch("http://127.0.0.1:3000/api/addChat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          project_id: "project_123",
+          case_id: uuidv4(),
+          uuid: uuidv4(),
+          create_date: "2023-11-18T08:30:00Z",
+        }),
+      });
+      if (result.ok) {
+        getChatsRoom();
+      }
+    }
+
+    window.onload = function () {
+      getChatsRoom();
+    };
+  </script>
+  <body class="h-screen w-screen">
+    <div class="flex flex-row w-full h-screen">
+      <div class="w-4/6 border flex flex-col items-center">
+        <h1 class="p-5 border-b w-full text-center">
+          Chat : <label id="uuidLabel"></label>
+        </h1>
+        <div id="chat" class="w-full h-full overflow-auto"></div>
+        <div class="w-full flex flex-row border-t">
+          <div class="w-4/6">
+            <input
+              type="text"
+              id="message"
+              class="w-full h-full pl-2 focus:outline-none"
+              onkeypress="keypress(event)"
+              placeholder="input here..."
+            />
+          </div>
+          <div class="w-2/6 border-l flex justify-center">
+            <button type="button" class="p-5" onclick="sendMessage()">
+              Send
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="w-2/6 border flex flex-col justify-center items-center">
+        <h1 class="p-5 border-b w-full text-center">Chat room</h1>
+        <div class="h-full w-full">
+          <div id="chatroom"></div>
+        </div>
+        <button
+          type="button"
+          class="p-5 w-full border-t"
+          onclick="addChatRoom()"
+        >
+          Add chat
+        </button>
+      </div>
+    </div>
+  </body>
+</html>
